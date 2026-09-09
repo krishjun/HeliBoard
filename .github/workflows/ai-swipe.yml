@@ -27,7 +27,8 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          # Robolectric's Android 36 sandbox requires Java 21; app bytecode remains Java 17.
+          java-version: '21'
       - uses: android-actions/setup-android@v3
         with:
           log-accepted-android-sdk-licenses: false
@@ -39,12 +40,14 @@ jobs:
         shell: bash
         run: |
           chmod +x gradlew
-          if ./gradlew :app:testDebugUnitTest --tests '*AiSwipe*' :app:assembleDebugNoMinify -PaiSwipe=${{ matrix.cloud }} --max-workers=2 '-Dorg.gradle.jvmargs=-Xmx3g' > build.log 2>&1; then
+          if ./gradlew :app:testDebugUnitTest --tests '*AiSwipe*' :app:assembleDebugNoMinify -PaiSwipe=${{ matrix.cloud }} --continue --max-workers=2 '-Dorg.gradle.jvmargs=-Xmx3g' > build.log 2>&1; then
             tail -n 80 build.log
           else
             tail -n 160 build.log
             exit 1
           fi
+      - name: Verify merged manifest privacy and package boundaries
+        run: python3 tools/check-ai-swipe-manifest.py ${{ matrix.cloud }}
       - name: Check production Firebase App Check compilation
         if: matrix.cloud
         shell: bash

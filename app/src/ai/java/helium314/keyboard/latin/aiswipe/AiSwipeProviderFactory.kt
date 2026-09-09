@@ -2,7 +2,6 @@
 package helium314.keyboard.latin.aiswipe
 
 import android.content.Context
-import android.os.Build
 import com.google.firebase.Firebase
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
@@ -17,10 +16,9 @@ object AiSwipeProviderFactory {
     fun create(context: Context): AiSwipeProvider? {
         if (!isConfigured()) return null
         // Even constructing a provider does not initialize Firebase or issue a network request.
+        // The controller must verify user-unlocked state before reaching this lazy initializer.
         val model by lazy {
-            val ctx = if (Build.VERSION.SDK_INT >= 24)
-                context.applicationContext.createCredentialProtectedStorageContext()
-                else context.applicationContext
+            val ctx = context.applicationContext
             val app = synchronized(this) {
                 FirebaseApp.getApps(ctx).firstOrNull { it.name == APP_NAME } ?: FirebaseApp.initializeApp(
                     ctx, FirebaseOptions.Builder()
