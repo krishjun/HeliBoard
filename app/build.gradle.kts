@@ -1,4 +1,5 @@
 import com.android.build.api.variant.ApplicationVariant
+import java.util.Properties
 
 plugins {
     id("com.android.application")
@@ -8,7 +9,7 @@ plugins {
 
 // Cloud builds are explicit; default artifacts retain their offline network boundary.
 val aiSwipe = providers.gradleProperty("aiSwipe").orNull == "true"
-val aiConfig = java.util.Properties().apply {
+val aiConfig = Properties().apply {
     val configFile = rootProject.file("firebase-ai.properties")
     if (aiSwipe && configFile.isFile) configFile.inputStream().use { load(it) }
 }

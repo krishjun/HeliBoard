@@ -13,41 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  integrate:
-    if: github.repository == 'krishjun/HeliBoard' && github.ref == 'refs/heads/codex/ai-swipe-completion'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    outputs:
-      commit: ${{ steps.source.outputs.commit }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: codex/ai-swipe-completion
-      - name: Apply reviewed integration patch and commit exact source
-        id: source
-        shell: bash
-        run: |
-          if test -f tools/ai-swipe-integration.patch.gz; then
-            gzip -dc tools/ai-swipe-integration.patch.gz > /tmp/ai-swipe-integration.patch
-            git apply --check --index /tmp/ai-swipe-integration.patch
-            git apply --index /tmp/ai-swipe-integration.patch
-            git rm tools/ai-swipe-integration.patch.gz
-            git config user.name 'github-actions[bot]'
-            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git commit -m 'feat: integrate AI swipe controls, guarded editing, settings and tests'
-            git push origin HEAD:refs/heads/codex/ai-swipe-completion
-          fi
-          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-          git archive --format=zip --output=source.zip HEAD
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ai-swipe-source
-          path: source.zip
-          retention-days: 7
-
   validate:
-    needs: integrate
     runs-on: ubuntu-latest
     timeout-minutes: 35
     strategy:
@@ -57,7 +23,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.integrate.outputs.commit }}
           persist-credentials: false
       - uses: actions/setup-java@v4
         with:
@@ -90,6 +55,15 @@ jobs:
             tail -n 120 release-compile.log
             exit 1
           fi
+      - name: Archive exact source
+        if: always() && matrix.cloud
+        run: git archive --format=zip --output=source.zip HEAD
+      - uses: actions/upload-artifact@v4
+        if: always() && matrix.cloud
+        with:
+          name: ai-swipe-source
+          path: source.zip
+          retention-days: 7
       - uses: actions/upload-artifact@v4
         if: always()
         with:
