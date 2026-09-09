@@ -82,6 +82,48 @@ class AiSwipeEditorTest {
         assertEquals("I will see you soon!", ShadowInputMethodService.text)
     }
 
+    @Test fun wholeSentenceAppendsWithoutReplacingDraftAndUndoRemovesOnlyInsertion() {
+        connection.commitText("Draft", 1)
+        assertTrue(logic.applyAiSwipeSentence("Draft", " I will see you soon.", settings))
+        assertEquals("Draft I will see you soon.", ShadowInputMethodService.text)
+        assertFalse(composer.isComposingWord)
+        assertEquals("", ShadowFacilitator2.lastAddedWord)
+        assertTrue(logic.undoAiSwipeSentence(" I will see you soon."))
+        assertEquals("Draft", ShadowInputMethodService.text)
+        assertEquals(0, ShadowInputMethodService.batchEdit)
+    }
+
+    @Test fun sentenceAcceptancePreservesAnExistingTypedComposition() {
+        swipe("soon")
+        assertTrue(logic.applyAiSwipeSentence("I will see you soon", " See you there.", settings))
+        assertEquals("I will see you soon See you there.", ShadowInputMethodService.text)
+        assertFalse(composer.isComposingWord)
+        assertEquals("", ShadowFacilitator2.lastAddedWord)
+    }
+
+    @Test fun sentenceCanBeInsertedAndUndoneInEmptyEditor() {
+        assertTrue(logic.applyAiSwipeSentence("", "Hello there.", settings))
+        assertEquals("Hello there.", ShadowInputMethodService.text)
+        assertTrue(logic.undoAiSwipeSentence("Hello there."))
+        assertEquals("", ShadowInputMethodService.text)
+    }
+
+    @Test fun stalePrefixAndEditedSentenceCannotBeModified() {
+        connection.commitText("Draft", 1)
+        assertFalse(logic.applyAiSwipeSentence("Other", " Wrong.", settings))
+        assertEquals("Draft", ShadowInputMethodService.text)
+        assertTrue(logic.applyAiSwipeSentence("Draft", " Hello.", settings))
+        connection.commitText("!", 1)
+        assertFalse(logic.undoAiSwipeSentence(" Hello."))
+        assertEquals("Draft Hello.!", ShadowInputMethodService.text)
+    }
+
+    @Test fun oldWordOnlyConsentDoesNotAuthorizeGestureUploads() {
+        java.io.File(ime.noBackupFilesDir, "ai-swipe-consent-v1").writeText("1")
+        ime.prefs().edit().putBoolean(AI_SWIPE_ENABLED, true).commit()
+        assertFalse(AiSwipeConsent.isGranted(ime))
+    }
+
     @Test fun restoredPreferenceDoesNotGrantCloudConsent() {
         ime.prefs().edit().putBoolean(AI_SWIPE_ENABLED, true).commit()
         assertFalse(AiSwipeConsent.isGranted(ime))

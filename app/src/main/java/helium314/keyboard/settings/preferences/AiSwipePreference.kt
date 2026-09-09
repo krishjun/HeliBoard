@@ -11,7 +11,6 @@ import androidx.compose.ui.res.stringResource
 import helium314.keyboard.latin.R
 import helium314.keyboard.latin.aiswipe.AiSwipeConsent
 import helium314.keyboard.latin.aiswipe.AiSwipeProviderFactory
-import helium314.keyboard.latin.utils.JniUtils
 import helium314.keyboard.settings.Setting
 
 @Composable
@@ -20,7 +19,7 @@ fun AiSwipePreference(setting: Setting) {
     var consent by remember { mutableStateOf(AiSwipeConsent.isGranted(ctx)) }
     var dialog by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf(false) }
-    val configured = AiSwipeProviderFactory.isConfigured() && JniUtils.sHaveGestureLib
+    val configured = AiSwipeProviderFactory.isConfigured()
     fun toggle(value: Boolean) {
         if (value) dialog = true
         else { AiSwipeConsent.revoke(ctx); consent = false }

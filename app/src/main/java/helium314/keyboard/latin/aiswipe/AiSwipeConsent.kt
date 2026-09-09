@@ -8,7 +8,7 @@ import java.io.File
 /** A restored settings backup cannot silently grant permission to upload another user's draft. */
 object AiSwipeConsent {
     @Volatile private var granted: Boolean? = null
-    private fun marker(context: Context) = File(context.noBackupFilesDir, "ai-swipe-consent-v1")
+    private fun marker(context: Context) = File(context.noBackupFilesDir, "ai-swipe-consent-v2")
 
     fun isGranted(context: Context): Boolean {
         val consent = granted ?: marker(context).isFile.also { granted = it }
@@ -16,7 +16,7 @@ object AiSwipeConsent {
     }
 
     fun grant(context: Context): Boolean = try {
-        marker(context).writeText("1")
+        marker(context).writeText("2")
         granted = true
         context.prefs().edit().putBoolean(AI_SWIPE_ENABLED, true).apply()
         true

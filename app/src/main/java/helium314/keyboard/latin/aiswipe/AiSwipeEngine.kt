@@ -53,7 +53,7 @@ class AiSwipeEngine(
                 lastRequest = time
                 status(AiSwipeStatus.WORKING)
                 val prediction = try {
-                    withTimeoutOrNull(TIMEOUT_MS) { provider.predict(request) }
+                    withTimeoutOrNull(if (request.trace == null) TIMEOUT_MS else SENTENCE_TIMEOUT_MS) { provider.predict(request) }
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (_: Exception) {
@@ -76,6 +76,7 @@ class AiSwipeEngine(
         const val DEBOUNCE_MS = 250L
         const val MIN_INTERVAL_MS = 1000L
         const val TIMEOUT_MS = 3000L
+        const val SENTENCE_TIMEOUT_MS = 8000L
         const val FAILURE_COOLDOWN_MS = 10_000L
         const val REQUESTS_PER_MINUTE = 30
     }

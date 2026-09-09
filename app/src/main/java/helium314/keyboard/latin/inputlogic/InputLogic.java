@@ -2351,6 +2351,45 @@ public final class InputLogic {
         }
     }
 
+    /** Append one explicitly selected sentence. Capturing/previewing never changes the editor. */
+    public boolean applyAiSwipeSentence(final String expectedPrefix, final String inserted,
+                                       final SettingsValues settingsValues) {
+        if (mConnection.hasSelection() || !mConnection.isCursorPositionKnown()
+                || inserted.isEmpty() || inserted.length() > 321
+                || (!expectedPrefix.isEmpty() && !TextUtils.equals(expectedPrefix,
+                    mConnection.getTextBeforeCursor(expectedPrefix.length(), 0)))
+                || !TextUtils.isEmpty(mConnection.getTextAfterCursor(1, 0))) return false;
+        mConnection.beginBatchEdit();
+        try {
+            // Finish the pre-existing typed word without replacing or learning it as an AI sentence.
+            mConnection.finishComposingText();
+            resetComposingState(true);
+            mConnection.commitText(inserted, 1);
+            mSpaceState = settingsValues.mAutospaceAfterSuggestion ? SpaceState.PHANTOM : SpaceState.NONE;
+            setSuggestedWords(SuggestedWords.getEmptyInstance());
+        } finally {
+            mConnection.endBatchEdit();
+        }
+        return true;
+    }
+
+    /** Remove only our exact insertion. The controller additionally verifies editor/revision/cursor. */
+    public boolean undoAiSwipeSentence(final String inserted) {
+        if (inserted.isEmpty() || inserted.length() > 321 || mWordComposer.isComposingWord()
+                || mConnection.hasSelection() || !mConnection.isCursorPositionKnown()
+                || !TextUtils.equals(inserted, mConnection.getTextBeforeCursor(inserted.length(), 0))) return false;
+        mConnection.beginBatchEdit();
+        try {
+            mConnection.deleteTextBeforeCursor(inserted.length());
+            resetComposingState(true);
+            mSpaceState = SpaceState.NONE;
+            setSuggestedWords(SuggestedWords.getEmptyInstance());
+        } finally {
+            mConnection.endBatchEdit();
+        }
+        return true;
+    }
+
     /** Explicit AI acceptance; do not learn a generated sentence as a dictionary word. */
     public boolean applyAiSwipeSuggestion(final String expectedWord, final String replacement,
                                          final SettingsValues settingsValues) {

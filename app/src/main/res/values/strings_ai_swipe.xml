@@ -2,11 +2,11 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <resources>
     <string name="ai_swipe_title">AI swipe assistant</string>
-    <string name="ai_swipe_summary">Use optional cloud predictions to improve a swiped word and suggest a short message continuation</string>
+    <string name="ai_swipe_summary">Swipe words or a whole sentence without lifting, then choose an AI interpretation</string>
     <string name="ai_swipe_sentences_title">Suggest message continuations</string>
     <string name="ai_swipe_sentences_summary">Offer a short continuation as well as a corrected word. Nothing is inserted until you tap.</string>
-    <string name="ai_swipe_consent">Enable cloud-assisted swiping?\n\nAfter a swipe, up to 256 characters of your current draft, local word candidates and keyboard language are sent to Google through Firebase AI Logic. This includes text you have not sent. It does not read conversations, notifications or your clipboard.\n\nAI can be wrong. Review suggestions before tapping; long-press to read a complete suggestion. Undo is available until the next edit. Password and specialized fields, incognito mode, no-learning fields and the lock screen are excluded, but sensitive information in ordinary messages cannot always be detected.\n\nNetwork and provider charges may apply. Turn this switch off to stop new requests. Permission is not restored from a settings backup.</string>
-    <string name="ai_swipe_setup_required">This feature needs a cloud-enabled build with Firebase Android app configuration, working App Check and the separately installed glide typing library. Follow docs/AI_SWIPE.md in this fork. Normal typing remains available without AI.</string>
+    <string name="ai_swipe_consent">Enable cloud-assisted swiping?\n\nAfter a swipe, up to 256 characters of your current draft, local word candidates, keyboard language and, in sentence mode, your gesture path with relative timing and keyboard layout are sent to Google through Firebase AI Logic. This includes text you have not sent. It does not read conversations, notifications or your clipboard.\n\nAI can be wrong. Review suggestions before tapping; sentence choices open a full preview before Insert. Long-press word suggestions to read them. Undo is available until the next edit. Password and specialized fields, incognito mode, no-learning fields and the lock screen are excluded, but sensitive information in ordinary messages cannot always be detected.\n\nNetwork and provider charges may apply. Turn this switch off to stop new requests. Permission is not restored from a settings backup.</string>
+    <string name="ai_swipe_setup_required">This feature needs a cloud-enabled build with Firebase Android app configuration, working App Check. Sentence mode reads gestures directly; normal word glide still needs the separately installed glide library. Follow docs/AI_SWIPE.md in this fork. Normal typing remains available without AI.</string>
     <string name="ai_swipe_consent_error">Permission could not be saved on this device. No AI requests have been enabled. Check available storage and try again.</string>
     <string name="ai_swipe_agree">Enable cloud predictions</string>
     <string name="ai_swipe_hint">AI · Swipe a word, then tap a prediction. Keep swiping to ignore.</string>
@@ -17,4 +17,19 @@
     <string name="ai_swipe_word_chip">AI word · %1$s</string>
     <string name="ai_swipe_phrase_chip">AI message · %1$s</string>
     <string name="ai_swipe_undo">Undo AI insertion</string>
+    <string name="ai_sentence_mode">Sentence swipe</string>
+    <string name="ai_sentence_word_mode">Word swipe</string>
+    <string name="ai_sentence_hint">Sentence mode · Glide across all words without lifting. Lift to see versions. Space-bar passes are optional.</string>
+    <string name="ai_sentence_drawing">Tracing sentence… keep gliding across words, then lift. Nothing is inserted yet.</string>
+    <string name="ai_sentence_working">AI · Reading the whole gesture… typing again discards this request.</string>
+    <string name="ai_sentence_no_match">No reliable interpretation · Try again; a space-bar pass can clarify a word boundary.</string>
+    <string name="ai_sentence_unavailable">Sentence prediction unavailable · Nothing inserted. Try again later or switch to word typing.</string>
+    <string name="ai_sentence_paused">AI paused · Nothing inserted. Try again later or switch to word typing.</string>
+    <string name="ai_sentence_too_long">Gesture limit reached · Nothing inserted. Use a shorter sentence (up to 60 seconds).</string>
+    <string name="ai_sentence_cancelled">Sentence cancelled · Nothing inserted. Use one finger and stay on the keyboard.</string>
+    <string name="ai_sentence_end_only">Sentence swipe needs the cursor at the end of the draft, with no text selected.</string>
+    <string name="ai_sentence_private">AI is paused for this draft because it may contain sensitive information.</string>
+    <string name="ai_sentence_choice">%1$d · %2$s</string>
+    <string name="ai_sentence_insert">Insert</string>
+    <string name="ai_sentence_other">Other versions</string>
 </resources>

@@ -8,6 +8,9 @@ import android.os.Build
 import android.os.SystemClock
 import android.os.UserManager
 import android.view.View
+import android.view.accessibility.AccessibilityManager
+import helium314.keyboard.keyboard.Keyboard
+import helium314.keyboard.keyboard.MainKeyboardView
 import android.view.inputmethod.InputConnection
 import helium314.keyboard.latin.aiswipe.*
 import helium314.keyboard.latin.inputlogic.aiSwipeWord
@@ -28,6 +31,11 @@ class AiSwipeController(private val ime: LatinIME) {
     private var active = false
     private var pending: Pending? = null
     private var undo: Undo? = null
+    private var sentenceMode = false
+    private var sentenceTouch: AiSwipeSentenceTouch? = null
+    private var sentence: Sentence? = null
+    private var decoding: Job? = null
+    private class Sentence(val stamp: AiSwipeEditStamp, val connection: InputConnection, val keyboard: Keyboard)
     private val preferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> invalidate() }
 
     private class Pending(val stamp: AiSwipeEditStamp, val connection: InputConnection,
@@ -38,7 +46,17 @@ class AiSwipeController(private val ime: LatinIME) {
     // LatinIME constructs this object before attaching a Context; do not initialize prefs earlier.
     fun attach(view: View) {
         if (!BuildConfig.AI_SWIPE_AVAILABLE) return
+        sentenceTouch?.close()
         bar = view.findViewById(R.id.ai_swipe_bar)
+        val keyboardView = view.findViewById<MainKeyboardView>(R.id.keyboard_view)
+        sentenceTouch = keyboardView?.let { keyboard ->
+            AiSwipeSentenceTouch(keyboard, { sentenceMode && eligible() && !touchExploration() },
+                ::beginSentence, ::endSentence) { tooLong ->
+                invalidate()
+                if (eligible()) bar?.showStatus(if (tooLong) R.string.ai_sentence_too_long else R.string.ai_sentence_cancelled)
+            }
+        }
+        bar?.setMode(sentenceMode, ::toggleMode)
         if (preferences == null) {
             preferences = ime.prefs().also { it.registerOnSharedPreferenceChangeListener(preferenceListener) }
         }
@@ -47,12 +65,15 @@ class AiSwipeController(private val ime: LatinIME) {
 
     fun startSession() {
         session++
+        sentenceMode = false
         active = false
         invalidate()
     }
 
     fun startView() {
         active = true
+        // Sentence capture does not depend on the optional proprietary word-glide library.
+        if (!JniUtils.sHaveGestureLib) sentenceMode = true
         invalidate()
     }
 
@@ -65,6 +86,8 @@ class AiSwipeController(private val ime: LatinIME) {
     fun close() {
         finish()
         scope.cancel()
+        sentenceTouch?.close()
+        sentenceTouch = null
         preferences?.unregisterOnSharedPreferenceChangeListener(preferenceListener)
         preferences = null
         bar = null
@@ -73,19 +96,24 @@ class AiSwipeController(private val ime: LatinIME) {
     fun invalidate() {
         revision++
         engine?.invalidate()
+        decoding?.cancel(); decoding = null
+        sentenceTouch?.cancel()
         pending = null
+        sentence = null
         undo = null
-        if (eligible()) bar?.showStatus(R.string.ai_swipe_hint) else bar?.hide()
+        bar?.setMode(sentenceMode, ::toggleMode)
+        if (eligible()) bar?.showStatus(if (sentenceMode) R.string.ai_sentence_hint else R.string.ai_swipe_hint)
+        else bar?.hide()
     }
 
     fun selectionChanged(start: Int, end: Int) {
-        val cursor = pending?.stamp?.cursor ?: undo?.stamp?.cursor ?: return
+        val cursor = sentence?.stamp?.cursor ?: pending?.stamp?.cursor ?: undo?.stamp?.cursor ?: return
         if (start != cursor || end != cursor) invalidate()
     }
 
     private fun eligible(): Boolean {
         if (!BuildConfig.AI_SWIPE_AVAILABLE || !active || !ime.isInputViewShown ||
-            !AiSwipeProviderFactory.isConfigured() || !JniUtils.sHaveGestureLib) return false
+            !AiSwipeProviderFactory.isConfigured()) return false
         val sv = ime.mSettings.current
         val editor = ime.currentInputEditorInfo ?: return false
         val locked = sv.mIsLocked ||
@@ -95,12 +123,13 @@ class AiSwipeController(private val ime: LatinIME) {
         // Field gate precedes consent disk checks and, most importantly, ALL editor reads.
         if (!AiSwipePolicy.allowsField(editor.inputType, editor.imeOptions, true,
                 sv.mIncognitoModeEnabled, locked)) return false
-        return sv.mGestureInputEnabled && !ime.isEmojiSearch && AiSwipeConsent.isGranted(ime)
+        return !ime.isEmojiSearch && AiSwipeConsent.isGranted(ime)
     }
 
     fun onGestureResult(words: SuggestedWords) {
         invalidate()
-        if (!eligible() || words.isEmpty || !ime.mInputLogic.isAiSwipeBatch) return
+        if (sentenceMode || !eligible() || !JniUtils.sHaveGestureLib ||
+            !ime.mSettings.current.mGestureInputEnabled || words.isEmpty || !ime.mInputLogic.isAiSwipeBatch) return
         val original = ime.mInputLogic.aiSwipeWord
         if (!AiSwipeRequest.isSwipeWord(original)) return
         val rich = ime.mInputLogic.mConnection
@@ -142,7 +171,8 @@ class AiSwipeController(private val ime: LatinIME) {
     private fun matches(stamp: AiSwipeEditStamp, connection: InputConnection): Boolean {
         if (!eligible() || ime.currentInputConnection !== connection) return false
         val rich = ime.mInputLogic.mConnection
-        val before = connection.getTextBeforeCursor(stamp.before.length, 0)?.toString() ?: return false
+        val before = if (stamp.before.isEmpty()) "" else
+            connection.getTextBeforeCursor(stamp.before.length, 0)?.toString() ?: return false
         val after = connection.getTextAfterCursor(1, 0)?.toString() ?: return false
         return stamp.matches(session, revision, rich.expectedSelectionStart, rich.expectedSelectionEnd, before, after)
     }
@@ -177,10 +207,89 @@ class AiSwipeController(private val ime: LatinIME) {
             ime.mInputLogic.isAiSwipeComposing) { invalidate(); return }
         undo = null
         revision++
-        if (ime.mInputLogic.undoAiSwipeSuggestion(value.inserted, value.original, ime.mSettings.current)) {
+        if (if (value.original.isEmpty()) ime.mInputLogic.undoAiSwipeSentence(value.inserted)
+            else ime.mInputLogic.undoAiSwipeSuggestion(value.inserted, value.original, ime.mSettings.current)) {
             ime.setSuggestions(value.words)
             ime.mKeyboardSwitcher.updateShiftState(ime.currentAutoCapsState, ime.currentRecapitalizeState)
         }
         invalidate()
     }
+
+    private fun touchExploration() = (ime.getSystemService(Context.ACCESSIBILITY_SERVICE)
+        as? AccessibilityManager)?.isTouchExplorationEnabled == true
+
+    private fun toggleMode() {
+        sentenceMode = !sentenceMode
+        invalidate()
+    }
+
+    private fun beginSentence(keyboard: Keyboard): Boolean {
+        invalidate()
+        if (!sentenceMode || !eligible()) return false
+        val rich = ime.mInputLogic.mConnection
+        val connection = ime.currentInputConnection ?: return false
+        if (!rich.isCursorPositionKnown || rich.hasSelection() ||
+            connection.getTextAfterCursor(1, 0)?.isEmpty() != true) {
+            bar?.showStatus(R.string.ai_sentence_end_only)
+            return false
+        }
+        val before = connection.getTextBeforeCursor(AiSwipeRequest.MAX_CONTEXT, 0)?.toString() ?: return false
+        if (!AiSwipePolicy.allowsContext(before)) {
+            bar?.showStatus(R.string.ai_sentence_private)
+            return false
+        }
+        sentence = Sentence(AiSwipeEditStamp(session, revision, rich.expectedSelectionStart, before), connection, keyboard)
+        bar?.showStatus(R.string.ai_sentence_drawing)
+        // No composer changes, native decoding, or network requests while the finger is down.
+        return true
+    }
+
+    private fun validSentence(value: Sentence): Boolean = sentence === value && sentenceMode &&
+        ime.mKeyboardSwitcher.keyboard === value.keyboard && matches(value.stamp, value.connection)
+
+    private fun endSentence(keys: List<AiSwipeTraceKey>, points: List<AiSwipeTracePoint>) {
+        val snapshot = sentence ?: return
+        if (!validSentence(snapshot)) { invalidate(); return }
+        bar?.showStatus(R.string.ai_sentence_working)
+        decoding = scope.launch {
+            val trace = withContext(Dispatchers.Default) { AiSwipeTrace(keys, AiSwipeTrace.simplify(points)) }
+            if (!validSentence(snapshot)) return@launch
+            val request = AiSwipeRequest(AiSwipeRequest.contextTail(snapshot.stamp.before), emptyList(),
+                ime.mSettings.current.mLocale.toLanguageTag().take(64), false, trace)
+            val predictor = engine ?: AiSwipeProviderFactory.create(ime)?.let {
+                AiSwipeEngine(scope, it, SystemClock::elapsedRealtime).also { created -> engine = created }
+            } ?: return@launch
+            predictor.submit(request, { validSentence(snapshot) }, { status ->
+                bar?.showStatus(when (status) {
+                    AiSwipeStatus.WORKING -> R.string.ai_sentence_working
+                    AiSwipeStatus.UNAVAILABLE -> R.string.ai_sentence_unavailable
+                    AiSwipeStatus.RATE_LIMITED -> R.string.ai_sentence_paused
+                    AiSwipeStatus.READY -> R.string.ai_sentence_hint
+                })
+            }) { result ->
+                if (result.alternatives.isEmpty()) bar?.showStatus(R.string.ai_sentence_no_match)
+                else bar?.showSentences(result.alternatives) { text -> acceptSentence(snapshot, text, request.locale) }
+            }
+        }
+    }
+
+    private fun acceptSentence(value: Sentence, text: String, locale: String) {
+        if (!validSentence(value) || !AiSwipeTrace.validSentence(text)) { invalidate(); return }
+        val inserted = AiSwipeTrace.insertion(value.stamp.before, text, locale)
+        sentence = null
+        engine?.invalidate()
+        revision++
+        if (!ime.mInputLogic.applyAiSwipeSentence(value.stamp.before, inserted, ime.mSettings.current)) {
+            invalidate(); return
+        }
+        ime.setSuggestions(SuggestedWords.getEmptyInstance())
+        // Updating shift may change the keyboard object; the undo snapshot is text/editor-based.
+        ime.mKeyboardSwitcher.updateShiftState(ime.currentAutoCapsState, ime.currentRecapitalizeState)
+        val stamp = AiSwipeEditStamp(session, revision, value.stamp.cursor + inserted.length, value.stamp.before + inserted)
+        if (!matches(stamp, value.connection)) { invalidate(); return }
+        val accepted = Undo(stamp, value.connection, inserted, "", SuggestedWords.getEmptyInstance())
+        undo = accepted
+        bar?.showUndo { undo(accepted) }
+    }
+
 }

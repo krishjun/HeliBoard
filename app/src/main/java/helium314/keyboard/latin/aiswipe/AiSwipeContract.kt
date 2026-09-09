@@ -9,16 +9,21 @@ data class AiSwipeRequest(
     val candidates: List<String>,
     val locale: String,
     val completeSentence: Boolean,
+    val trace: AiSwipeTrace? = null,
 ) {
     init {
         require(context.length <= MAX_CONTEXT)
-        require(candidates.size in 1..MAX_CANDIDATES)
+        require(if (trace == null) candidates.size in 1..MAX_CANDIDATES else candidates.isEmpty())
         require(candidates.all(::isSwipeWord))
         require(locale.length <= 64)
     }
 
     fun toJson(): String = buildJsonObject {
         put("draft_before_word", context)
+        if (trace != null) {
+            put("task", "decode_continuous_sentence")
+            put("gesture", trace.toJson())
+        }
         put("swipe_candidates", JsonArray(candidates.map(::JsonPrimitive)))
         put("keyboard_locale", locale)
         put("offer_continuation", completeSentence)
@@ -45,7 +50,8 @@ data class AiSwipeRequest(
     }
 }
 
-data class AiSwipeResult(val word: String, val continuation: String) {
+data class AiSwipeResult(val word: String, val continuation: String,
+                         val alternatives: List<String> = emptyList()) {
     fun joined(locale: String): String {
         if (continuation.isEmpty()) return word
         val noSpace = continuation.first() in ".,!?;:)]}、。！？，：；" ||
@@ -56,9 +62,22 @@ data class AiSwipeResult(val word: String, val continuation: String) {
     companion object {
         /** Schema is not a security boundary: validate again before displaying/inserting. */
         fun parse(raw: String?, request: AiSwipeRequest): AiSwipeResult? {
-            if (raw == null || raw.length > 2048) return null
+            if (raw == null || raw.length > (if (request.trace == null) 2048 else 8192)) return null
             val obj = try { Json.parseToJsonElement(raw) as? JsonObject } catch (_: Exception) { null }
                 ?: return null
+            if (request.trace != null) {
+                val array = obj["alternatives"] as? JsonArray ?: return null
+                if (array.size > AiSwipeTrace.MAX_ALTERNATIVES) return null
+                val choices = mutableListOf<String>()
+                for (element in array) {
+                    val text = (element as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return null
+                    if (!AiSwipeTrace.validSentence(text)) return null
+                    if (request.trace.supports(text) && choices.none { it.equals(text, ignoreCase = true) })
+                        choices.add(text)
+                }
+                // Empty alternatives is a valid abstention. Never fabricate filler to reach three.
+                return AiSwipeResult("", "", choices)
+            }
             fun string(key: String): String? = (obj[key] as? JsonPrimitive)
                 ?.takeIf { it.isString }?.content
             val word = string("word") ?: return null

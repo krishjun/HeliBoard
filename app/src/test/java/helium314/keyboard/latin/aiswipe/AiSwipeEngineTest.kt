@@ -89,4 +89,22 @@ class AiSwipeEngineTest {
         assertEquals(30, calls)
         assertTrue(starts.zipWithNext().all { (a, b) -> b - a >= 1000 })
     }
+    @Test fun sentenceRequestHasLongerTimeoutButRetainsStaleResultProtection() = runTest {
+        val trace = AiSwipeTrace(listOf(AiSwipeTraceKey("a", 1f, 1f, 1f, 1f),
+            AiSwipeTraceKey("b", 2f, 1f, 1f, 1f)), listOf(
+            AiSwipeTracePoint(1f, 1f, 0), AiSwipeTracePoint(2f, 1f, 100)))
+        val request = AiSwipeRequest("", emptyList(), "en", false, trace)
+        val prediction = AiSwipeResult("", "", listOf("A b"))
+        var accepted = 0
+        val engine = AiSwipeEngine(this, AiSwipeProvider { delay(5_000); prediction }, { testScheduler.currentTime })
+        engine.submit(request, { true }, {}, { accepted++ })
+        advanceUntilIdle()
+        assertEquals(1, accepted)
+        engine.submit(request, { true }, {}, { accepted++ })
+        advanceTimeBy(1_000)
+        engine.invalidate()
+        advanceUntilIdle()
+        assertEquals(1, accepted)
+    }
+
 }
