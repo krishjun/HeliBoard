@@ -130,13 +130,13 @@ android {
 }
 
 // A build-type manifest overlay avoids changing offline tasks or duplicating the main manifest.
-android.sourceSets.getByName("main").java.srcDir(if (aiSwipe) "src/ai/java" else "src/offline/java")
+android.sourceSets.getByName("main").kotlin.srcDir(if (aiSwipe) "src/ai/java" else "src/offline/java")
 if (aiSwipe) {
     android.buildTypes.all {
         val development = name == "debug" || name == "debugNoMinify"
         android.sourceSets.getByName(name).apply {
             manifest.srcFile("src/ai/AndroidManifest.xml")
-            java.srcDir(if (development) "src/aiDebug/java" else "src/aiProduction/java")
+            kotlin.srcDir(if (development) "src/aiDebug/java" else "src/aiProduction/java")
         }
     }
 }

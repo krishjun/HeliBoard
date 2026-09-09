@@ -10,6 +10,9 @@ import android.os.UserManager
 import android.view.View
 import android.view.inputmethod.InputConnection
 import helium314.keyboard.latin.aiswipe.*
+import helium314.keyboard.latin.inputlogic.aiSwipeWord
+import helium314.keyboard.latin.inputlogic.isAiSwipeBatch
+import helium314.keyboard.latin.inputlogic.isAiSwipeComposing
 import helium314.keyboard.latin.utils.JniUtils
 import helium314.keyboard.latin.utils.prefs
 import kotlinx.coroutines.*
@@ -97,9 +100,8 @@ class AiSwipeController(private val ime: LatinIME) {
 
     fun onGestureResult(words: SuggestedWords) {
         invalidate()
-        if (!eligible() || words.isEmpty || !ime.mInputLogic.mWordComposer.isBatchMode) return
-        val composer = ime.mInputLogic.mWordComposer
-        val original = composer.typedWord
+        if (!eligible() || words.isEmpty || !ime.mInputLogic.isAiSwipeBatch) return
+        val original = ime.mInputLogic.aiSwipeWord
         if (!AiSwipeRequest.isSwipeWord(original)) return
         val rich = ime.mInputLogic.mConnection
         if (!rich.isCursorPositionKnown || rich.hasSelection()) return
@@ -146,7 +148,7 @@ class AiSwipeController(private val ime: LatinIME) {
     }
 
     private fun valid(value: Pending): Boolean = pending === value && matches(value.stamp, value.connection) &&
-        ime.mInputLogic.mWordComposer.isBatchMode && ime.mInputLogic.mWordComposer.typedWord == value.word
+        ime.mInputLogic.isAiSwipeBatch && ime.mInputLogic.aiSwipeWord == value.word
 
     private fun accept(value: Pending, replacement: String) {
         if (!valid(value)) { invalidate(); return }
@@ -172,7 +174,7 @@ class AiSwipeController(private val ime: LatinIME) {
 
     private fun undo(value: Undo) {
         if (undo !== value || !matches(value.stamp, value.connection) ||
-            ime.mInputLogic.mWordComposer.isComposingWord) { invalidate(); return }
+            ime.mInputLogic.isAiSwipeComposing) { invalidate(); return }
         undo = null
         revision++
         if (ime.mInputLogic.undoAiSwipeSuggestion(value.inserted, value.original, ime.mSettings.current)) {
