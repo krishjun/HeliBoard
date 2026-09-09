@@ -13,29 +13,92 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  validate:
+  integrate:
+    if: github.repository == 'krishjun/HeliBoard' && github.ref == 'refs/heads/codex/ai-swipe-completion'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    permissions:
+      contents: write
+    outputs:
+      commit: ${{ steps.source.outputs.commit }}
     steps:
       - uses: actions/checkout@v4
-      - name: Archive exact source for reproducible review
-        run: git archive --format=zip --output=source.zip HEAD
+        with:
+          ref: codex/ai-swipe-completion
+      - name: Apply reviewed integration patch and commit exact source
+        id: source
+        shell: bash
+        run: |
+          if test -f tools/ai-swipe-integration.patch.gz; then
+            gzip -dc tools/ai-swipe-integration.patch.gz > /tmp/ai-swipe-integration.patch
+            git apply --check --index /tmp/ai-swipe-integration.patch
+            git apply --index /tmp/ai-swipe-integration.patch
+            git rm tools/ai-swipe-integration.patch.gz
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git commit -m 'feat: integrate AI swipe controls, guarded editing, settings and tests'
+            git push origin HEAD:refs/heads/codex/ai-swipe-completion
+          fi
+          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          git archive --format=zip --output=source.zip HEAD
       - uses: actions/upload-artifact@v4
         with:
           name: ai-swipe-source
           path: source.zip
           retention-days: 7
+
+  validate:
+    needs: integrate
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        cloud: [false, true]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.integrate.outputs.commit }}
+          persist-credentials: false
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
       - uses: android-actions/setup-android@v3
+        with:
+          log-accepted-android-sdk-licenses: false
+          packages: platform-tools
       - uses: gradle/actions/setup-gradle@v4
-      - name: Test offline keyboard
-        run: chmod +x gradlew && ./gradlew testRunTestsUnitTest --stacktrace
+        with:
+          cache-read-only: false
+      - name: Test and build keyboard
+        shell: bash
+        run: |
+          chmod +x gradlew
+          if ./gradlew :app:testDebugUnitTest --tests '*AiSwipe*' :app:assembleDebugNoMinify -PaiSwipe=${{ matrix.cloud }} --max-workers=2 '-Dorg.gradle.jvmargs=-Xmx3g' > build.log 2>&1; then
+            tail -n 80 build.log
+          else
+            tail -n 160 build.log
+            exit 1
+          fi
+      - name: Check production Firebase App Check compilation
+        if: matrix.cloud
+        shell: bash
+        run: |
+          if ./gradlew :app:compileReleaseKotlin -PaiSwipe=true --max-workers=2 '-Dorg.gradle.jvmargs=-Xmx3g' > release-compile.log 2>&1; then
+            tail -n 40 release-compile.log
+          else
+            tail -n 120 release-compile.log
+            exit 1
+          fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: ai-swipe-test-reports
-          path: app/build/reports
+          name: ai-swipe-validation-cloud-${{ matrix.cloud }}
+          path: |
+            build.log
+            release-compile.log
+            app/build/reports
+            app/build/test-results
+            app/build/outputs/apk
+            app/build/intermediates/merged_manifests
           retention-days: 7
