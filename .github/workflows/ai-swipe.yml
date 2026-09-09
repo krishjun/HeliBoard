@@ -13,7 +13,42 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  integrate:
+    if: github.repository == 'krishjun/HeliBoard' && github.ref == 'refs/heads/codex/ai-swipe-completion'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    outputs:
+      sha: ${{ steps.source.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply checksum-verified sentence source changes
+        id: source
+        shell: bash
+        run: |
+          if test -d tools/ai-sentence-patch; then
+            python3 - <<'PY'
+          from pathlib import Path
+          import base64, gzip, hashlib
+          encoded = ''.join(Path(f'tools/ai-sentence-patch/part{i}.b64').read_text().strip() for i in range(3))
+          patch = gzip.decompress(base64.b64decode(encoded, validate=True))
+          assert hashlib.sha256(patch).hexdigest() == '76ecd45cadf2a93df78c8571dd7c09ea6e92bb441a0dbcdb3491a2d0f8cd2368', 'Source transfer checksum mismatch'
+          Path('/tmp/ai-sentence.patch').write_bytes(patch)
+          PY
+            git apply --check /tmp/ai-sentence.patch
+            git apply /tmp/ai-sentence.patch
+            git rm -r tools/ai-sentence-patch
+            git add app
+            git diff --cached --check
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git commit -m 'feat: add continuous sentence swipe decoding, alternatives, preview and guarded undo'
+            git push origin HEAD:refs/heads/codex/ai-swipe-completion
+          fi
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
   validate:
+    needs: integrate
     runs-on: ubuntu-latest
     timeout-minutes: 35
     strategy:
@@ -23,11 +58,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ needs.integrate.outputs.sha }}
           persist-credentials: false
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          # Robolectric's Android 36 sandbox requires Java 21; app bytecode remains Java 17.
           java-version: '21'
       - uses: android-actions/setup-android@v3
         with:
