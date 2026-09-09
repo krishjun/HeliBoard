@@ -1,73 +1,67 @@
 # AI swipe assistant
 
-This fork adds an explicitly opt-in Firebase AI Logic assistant on top of HeliBoard's existing glide decoder. It is an implementation for evaluation, not a measured claim that novices already type faster. See [AI_SWIPE_VALIDATION.md](AI_SWIPE_VALIDATION.md) for the verified build, test results and remaining device/cloud checks.
+This fork has two opt-in Firebase AI Logic modes. **Word swipe** keeps local word decoding immediate, then offers an AI correction/short continuation. **Sentence swipe** interprets one continuous finger-down gesture as a whole phrase or sentence and offers multiple versions before insertion. Both are experimental: implementation/tests alone are not evidence that novices type faster.
+
+For the continuous interaction, algorithm, bounds and evaluation checklist see [AI_SENTENCE_SWIPE.md](AI_SENTENCE_SWIPE.md). The sentence mode does not require the optional native word-glide library. Word swipe still requires that library and a suitable dictionary, as described in the main README.
 
 ## Interaction
 
-Swipe a word normally. The local decoder updates the editor immediately. After a short pause, a separate AI row can offer a better local candidate and a short continuation. Tap **AI word** to replace just the latest swiped word, or **AI message** to replace that word with the proposed phrase. Long-press a candidate to read its full text. Continue swiping to ignore it. Nothing is automatically rewritten or sent. **Undo AI insertion** restores the original swipe word while the editor, cursor and text remain unchanged; the next input dismisses undo.
+After enabling the assistant, the AI row provides a **Sentence swipe / Word swipe** mode switch. In Sentence mode, glide across the letters of every word without lifting; lift after the final word. Space-bar passes are optional boundary hints. Review up to three interpretations, tap one for its full scrollable preview, then **Insert**. The keyboard does not insert a guessed native word while the gesture is underway.
 
-For example, after a rough swipe in `I will see you ...`, the native decoder might offer `son` and `soon`. AI can prefer `soon`, and optionally suggest a short continuation. This is illustrative, not a recorded model result.
+Word mode retains the existing behavior: the native word decoder updates the editor immediately, and AI reranks up to eight native candidates using the recent draft. **AI word** replaces only the latest swiped word; **AI message** adds a short continuation. Long-press a word-mode choice to read it. The separate **Suggest message continuations** switch only controls those speculative tails; it does not disable whole-sentence transcription.
 
-This version reranks up to eight native candidates. It does not introduce a new raw-path recognizer, recover a word absent from those candidates, rewrite earlier sentences, or read the other person's chat history. Suggestions are limited to a collapsed cursor at the end of an ordinary text field. Native glide still requires HeliBoard's separately installed gesture library and a suitable local dictionary; that library is not bundled or downloaded by this feature. See the main README's glide-typing instructions.
+Neither mode automatically sends a message or rewrites earlier draft text. **Undo AI insertion** restores the original word in Word mode or removes the appended sentence in Sentence mode. It is available only while the editor, cursor and text remain unchanged. Typing, changing selection, switching fields/languages or hiding the keyboard invalidates old results. Predictions are currently restricted to a collapsed cursor at the end of an ordinary text field.
 
 ## Build modes
 
-The default build stays offline: no Firebase dependencies and no INTERNET permission are added. Existing package IDs and Android 21 support are retained. Cloud builds are explicit, use a separate package ID to install alongside the offline keyboard, and require Android 23 or newer. File-provider authorities follow the final package ID so these installations do not conflict.
+The default build remains offline: no Firebase dependencies or INTERNET permission. It retains the existing package IDs and Android 21 support. Explicit cloud builds use separate package IDs and require Android 23 or newer.
 
-Use **JDK 21**, the checked-in Gradle wrapper, Android SDK 37 and NDK 28.0.13004108. App bytecode remains targeted to Java 17; JDK 21 is needed for the Robolectric Android 36 test environment.
+Use JDK 21 for the Robolectric Android 36 test sandbox; app source/bytecode remains Java 17. The project uses its checked-in wrapper, Android SDK 37 and NDK 28.0.13004108.
 
 ```sh
-# Offline keyboard
+# Offline
 ./gradlew :app:assembleDebugNoMinify
-
-# Cloud-enabled keyboard (AI remains unavailable until configured)
+# Cloud-enabled, but still needs Firebase configuration and consent
 ./gradlew :app:assembleDebugNoMinify -PaiSwipe=true
-
-# Focused prediction, privacy, scheduling and editor tests
+# Focused feature tests, independently in both configurations
 ./gradlew :app:testDebugUnitTest --tests '*AiSwipe*'
 ./gradlew :app:testDebugUnitTest --tests '*AiSwipe*' -PaiSwipe=true
 ```
 
-The former `testRunTestsUnitTest` command is not used by this feature's workflow.
+## Firebase setup before live use
 
-## Firebase setup required before live use
+1. Enable Firebase AI Logic in your Firebase project with the Gemini Developer API backend. Choose a project/billing/data-processing configuration appropriate for unsent keyboard drafts; review the provider's applicable terms before distribution.
+2. Register `helium314.keyboard.ai.debug` for debug/debugNoMinify or `helium314.keyboard.ai` for release. Configure the actual signing certificate for API restrictions and App Check.
+3. Copy `firebase-ai.properties.example` to the ignored root file `firebase-ai.properties`. Set `projectId` from `project_info.project_id`, `applicationId` from the matching Android client's `client_info.mobilesdk_app_id`, and `apiKey` from that client's `api_key.current_key` in the Firebase Android configuration. Here `applicationId` is the Firebase app ID, often `1:...:android:...`, NOT the Android package name.
+4. Configure App Check. Debug builds use the debug provider: register the token generated on your device in your own Firebase console and keep it private. Production builds use Play Integrity; configure attestation/enforcement for the actual signing/distribution arrangement. Never ship the debug provider or disable enforcement to work around a release error.
+5. Build with `-PaiSwipe=true`, install and enable the keyboard, then enable **Settings > Glide typing > AI swipe assistant** and accept the disclosure. Install/enable the native glide library only for Word swipe; Sentence swipe captures gestures directly. Existing Word-only consent must be renewed for gesture uploads.
 
-1. In your Firebase project, enable Firebase AI Logic with the Gemini Developer API backend. Use a project/billing/data-processing configuration appropriate for keyboard drafts. Review Google's applicable data-use terms before distributing a cloud keyboard.
-2. Register the Android package that you will build: `helium314.keyboard.ai.debug` for debug/debugNoMinify, or `helium314.keyboard.ai` for release. Register the correct signing certificate for App Check and API restrictions.
-3. Copy `firebase-ai.properties.example` to `firebase-ai.properties` at the repository root. Fill `projectId` from `project_info.project_id`, `applicationId` from the matching Android client's `client_info.mobilesdk_app_id`, and `apiKey` from that client's `api_key.current_key` in your Firebase Android configuration. Here `applicationId` means the Firebase app ID (often starting `1:...:android:...`), **not** the Android package name.
-4. Configure Firebase App Check. Debug builds install the debug App Check provider; register the development token generated on your device in your own Firebase console. Keep that token private. Production builds use Play Integrity; configure attestation and enforcement for your actual signing/distribution arrangement. Do not ship the debug provider or disable enforcement to solve a release configuration problem.
-5. Build with `-PaiSwipe=true`, install, enable the keyboard, install/enable the glide library, then open **Settings > Glide typing > AI swipe assistant** and accept the explicit data disclosure. The separate **Suggest message continuations** switch controls whether AI may offer more than a word correction.
+`firebase-ai.properties` and `google-services.json` are gitignored. Firebase client configuration is not an authorization boundary. Do not put a raw Gemini API key, service-account credential or App Check debug token into source or this properties file. No Google Services Gradle plugin is needed; the client lazily initializes a named Firebase app after consent and an eligible request.
 
-`firebase-ai.properties` and `google-services.json` are gitignored. Firebase client configuration is not a secret security boundary. Never put a raw Gemini API key, service-account credential or App Check debug token in these files or source code. The Google Services Gradle plugin is not needed: the provider lazily creates a named Firebase app using the supplied client configuration after consent and an eligible swipe.
+The configured default remains `gemini-3.5-flash-lite`, with Firebase BoM `34.18.0`, minimal thinking and structured JSON. Word output has a 256-token budget; sentence output 1024. Changing the configured model requires checking its thinking/schema support and testing it; there is no silent fallback to a differently priced model.
 
-The default model is `gemini-3.5-flash-lite`, verified against Firebase's model documentation on 2026-09-09. Firebase BoM is pinned to `34.18.0`. The request uses minimal thinking, a small output budget and structured JSON. Changing `model` requires reviewing that model's support for the configured thinking level and structured-output API, then testing it; there is no silent fallback to a differently priced model.
+An unconfigured CI APK cannot make live predictions. This code does not provision a Firebase project, billing, App Check registration or provider permissions, and does not fabricate credentials.
 
-A CI APK built without your Firebase configuration is useful for build verification only: it cannot make live predictions. No project, billing account, App Check registration or provider permission is provisioned by this code.
+## Privacy and failure behavior
 
-## Privacy and correctness boundaries
+Field eligibility is checked before editor reads. Password, visible/web-password, email, URI, number, phone, person-name and other specialized fields are excluded, along with incognito, no-suggestions/no-personalized-learning, screen lock and locked direct-boot storage. A defensive draft filter suppresses obvious URLs, email addresses, long tokens and sequences of four or more digits. It cannot identify every secret in ordinary prose or in a gesture.
 
-Field eligibility is checked before reading editor context. Password, visible/web-password, email, URI, number, phone, person-name and other specialized fields are excluded, along with incognito mode, no-suggestions/no-personalized-learning fields, the lock screen and locked direct-boot storage. A defensive text filter also suppresses obvious email addresses, URLs, long tokens and sequences of four or more digits. This filter cannot detect every secret placed in ordinary prose; the cloud consent disclosure says so.
+Word requests contain at most 256 UTF-16 units of preceding draft, candidate words and locale. Sentence requests additionally contain normalized gesture points, relative timing and the actual keyboard layout; they have no native word-candidate restriction. No conversation scraping, notification access, clipboard reading, persistent prompt/gesture/result cache, or private-content/SDK-exception logging is added. This describes client behavior, not Google's retention/training policy.
 
-Only the recent draft prefix (at most 256 UTF-16 units), the candidate words and the keyboard locale enter the request. No conversation scraping, notification access, clipboard reading or persistent prompt/result cache is added. This feature does not log drafts, predictions or SDK exceptions. This describes the client, not Google's server-side retention or training policy.
+Consent requires a preference AND a version-2 marker in no-backup storage. An old version-1 marker or restored settings backup cannot authorize gesture uploads. Firebase's automatic initialization provider is removed, default data collection disabled, and automatic App Check token refresh disabled. Revocation cancels pending work and prevents new requests, but cannot retract an already-received request.
 
-Consent needs both a preference and a marker in no-backup storage. Restoring a settings backup cannot independently enable uploads. Firebase's automatic initialization provider is removed from the cloud manifest, data collection defaults are disabled, and App Check automatic token refresh is disabled. Turning the feature off cancels pending work and prevents new prediction requests; it cannot retract a request already received by the provider.
+Both modes check editor/session/revision/cursor/text snapshots before dispatch, display, acceptance and undo. Sentence requests also check keyboard identity. JSON fields, output sizes, allowed characters and duplicates are validated; sentence alternatives undergo a heuristic path-alignment check. Draft content is treated as untrusted data, never instructions. The filter is not proof of correct interpretation.
 
-Predictions carry an editor/session/revision/cursor/text snapshot. The snapshot is rechecked before network dispatch, display, acceptance and undo. Starting a new gesture, touching a key, manual candidate selection, editing/pasting, changing selection, switching fields/languages/preferences or hiding the keyboard invalidates the old result. Responses may only select an actual candidate. Missing fields, non-string JSON, oversize output, control characters and bidirectional override characters are rejected. Draft content is untrusted data in the prompt, not instructions.
+Native typing does not wait for cloud results. The shared client debounces for 250 ms, spaces starts by at least one second, allows at most 30 starts per rolling minute per engine, and cools down ten seconds after failure. Word timeout is three seconds; sentence timeout eight seconds. No automatic retries. Failures leave draft text intact. Client limits are not billing caps or an abuse-prevention boundary: configure provider quotas/monitoring separately.
 
-The local decoder never waits for cloud work. The client debounces for 250 ms, spaces request starts by at least one second, permits at most 30 requests per rolling minute per IME engine, times out after three seconds, and pauses for ten seconds after a failure. There is no automatic retry loop. Network, quota, attestation or parse failures leave local input intact. These client-side limits are not a billing guarantee or abuse-prevention boundary: also configure provider quotas and monitoring. Budget alerts alone are not a hard spending cap.
+## Validation and release
 
-## Validation before a release
-
-CI separately tests/builds offline and cloud configurations, verifies merged manifests, and compiles the production App Check source path. The focused tests cover JSON/candidate validation, punctuation/language joining, context clipping, protected-field policy, edit stamps, debouncing, cancellation, stale results, single-flight behavior, timeout, backoff, request budget, real InputLogic/RichInputConnection acceptance/undo against a simulated editor, and non-restorable consent. They do not replace live-device IME and cloud testing.
-
-On real devices test: slow/fast inaccurate swipes; taps and paste during a delayed response; cursor movement and selection; app/field/locale changes; backspace immediately after AI acceptance; undo; composing spans in different messaging/browser apps; screen lock, incognito and no-learning flags; loss of connectivity; invalid Firebase/App Check configuration; malformed/blocked output; rotation; floating/one-handed keyboard modes; and TalkBack.
-
-Evaluate novice speed with the same randomized phrase set, local glide versus AI-assisted glide, counterbalanced order and a short practice period. Record corrected words per minute, final character error rate, undo/rejection rate, and median/p95 time from swipe release to usable suggestion. Use synthetic or consented phrases, not private messages. Release only after the latency and error results justify the feature; no benchmark improvement has been measured by this implementation work.
+[AI_SWIPE_VALIDATION.md](AI_SWIPE_VALIDATION.md) records the earlier Word-only build. [AI_SENTENCE_SWIPE.md](AI_SENTENCE_SWIPE.md) describes the new test/evaluation scope. CI checks both build configurations, feature tests, APK assembly, merged-manifest boundaries and production Firebase/App Check Kotlin compilation. Live-device inference, recognition quality, latency and novice-speed trials remain separate release gates; do not infer them from green builds.
 
 ## Official references
 
-- Firebase setup and Android dependencies: https://firebase.google.com/docs/ai-logic/get-started
-- Available models: https://firebase.google.com/docs/ai-logic/models
-- Structured JSON output: https://firebase.google.com/docs/ai-logic/generate-structured-output
-- Thinking configuration: https://firebase.google.com/docs/ai-logic/thinking
-- App Check: https://firebase.google.com/docs/ai-logic/app-check
+- https://firebase.google.com/docs/ai-logic/get-started
+- https://firebase.google.com/docs/ai-logic/models
+- https://firebase.google.com/docs/ai-logic/generate-structured-output
+- https://firebase.google.com/docs/ai-logic/thinking
+- https://firebase.google.com/docs/ai-logic/app-check

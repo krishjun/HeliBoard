@@ -1,6 +1,8 @@
 # HeliBoard
 HeliBoard is a privacy-conscious and customizable open-source keyboard, based on AOSP / OpenBoard.
-Does not use internet permission, and thus is 100% offline.
+Default builds do not use internet permission and remain offline.
+
+This fork also offers an **experimental, explicitly opt-in cloud build** using Firebase AI Logic for word assistance and [continuous sentence swiping](docs/AI_SENTENCE_SWIPE.md). Cloud builds have INTERNET permission, use a separate package ID, and can send unsent draft/gesture data to Google after consent. See [AI setup and privacy boundaries](docs/AI_SWIPE.md). The upstream download badges below are for the original offline keyboard, not this experimental cloud build.
 
 [<img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" alt="Get it on F-Droid" height="80">](https://f-droid.org/packages/helium314.keyboard/)
 [<img src="https://user-images.githubusercontent.com/663460/26973090-f8fdc986-4d14-11e7-995a-e7c5e79ed925.png" alt="Get APK from GitHub" height="80">](https://github.com/HeliBorg/HeliBoard/releases/latest)
@@ -36,7 +38,7 @@ Does not use internet permission, and thus is 100% offline.
   <li>Customize keyboard <a href="https://github.com/HeliBorg/HeliBoard/blob/main/layouts.md">layouts</a> (only available when disabling <i>use system languages</i>)</li>
   <li>Customize special layouts, like symbols, number,  or functional key layout</li>
   <li>Multilingual typing</li>
-  <li>Glide typing (<i>only with closed source library</i> ☹️)</li>
+  <li>Native word glide typing (<i>only with closed source library</i> ☹️)</li>
   <ul>
     <li>library not included in the app, as there is no compatible open source library available</li>
     <li>can be extracted from GApps packages ("<i>swypelibs</i>"), or downloaded <a href="https://github.com/erkserkserks/openboard/tree/46fdf2b550035ca69299ce312fa158e7ade36967/app/src/main/jniLibs">here</a> (click on the file and then "raw" or the tiny download button)</li>
