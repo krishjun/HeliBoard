@@ -1,0 +1,41 @@
+name: AI swipe validation
+
+on:
+  push:
+    branches: [codex/ai-swipe-completion]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-swipe-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Archive exact source for reproducible review
+        run: git archive --format=zip --output=source.zip HEAD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ai-swipe-source
+          path: source.zip
+          retention-days: 7
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Test offline keyboard
+        run: chmod +x gradlew && ./gradlew testRunTestsUnitTest --stacktrace
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ai-swipe-test-reports
+          path: app/build/reports
+          retention-days: 7
