@@ -51,8 +51,8 @@ class AiSwipeSentenceTouchTest {
         assertEquals(0, completions)
         assertTrue(event(MotionEvent.ACTION_UP, 400, 250f))
         assertEquals(1, completions)
-        assertEquals(0.5f, captured.first().x)
-        assertEquals(2.5f, captured.last().x)
+        assertEquals(0.5f, captured.first().x, 0f)
+        assertEquals(2.5f, captured.last().x, 0f)
         assertEquals(300, captured.last().time)
         verify(view, never()).processMotionEvent(any(MotionEvent::class.java))
     }
@@ -107,5 +107,35 @@ class AiSwipeSentenceTouchTest {
         enabled = false
         assertFalse(event(MotionEvent.ACTION_DOWN, 100, 50f))
         assertFalse(event(MotionEvent.ACTION_UP, 200, 150f))
+    }
+
+    @Test fun historicalMoveSamplesPreserveIntermediatePath() {
+        event(MotionEvent.ACTION_DOWN, 100, 50f)
+        val move = MotionEvent.obtain(100, 200, MotionEvent.ACTION_MOVE, 150f, 50f, 0)
+        move.addBatch(300, 250f, 50f, 1f, 1f, 0)
+        try { assertTrue(touch.onTouch(view, move)) } finally { move.recycle() }
+        event(MotionEvent.ACTION_UP, 400, 50f)
+        assertEquals(1, completions)
+        assertTrue(captured.any { it.x == 1.5f })
+        assertTrue(captured.any { it.x == 2.5f })
+        assertEquals(0.5f, captured.last().x, 0f)
+    }
+
+    @Test fun secondFingerCancelsInsteadOfMergingTwoPaths() {
+        event(MotionEvent.ACTION_DOWN, 100, 50f)
+        val properties = Array(2) { id -> MotionEvent.PointerProperties().apply {
+            this.id = id; toolType = MotionEvent.TOOL_TYPE_FINGER
+        } }
+        val coordinates = Array(2) { id -> MotionEvent.PointerCoords().apply {
+            x = 150f + id * 100f; y = 50f; pressure = 1f; size = 1f
+        } }
+        val multiple = MotionEvent.obtain(100, 200,
+            MotionEvent.ACTION_POINTER_DOWN or (1 shl MotionEvent.ACTION_POINTER_INDEX_SHIFT),
+            2, properties, coordinates, 0, 0, 1f, 1f, 0, 0, 0, 0)
+        try { assertTrue(touch.onTouch(view, multiple)) } finally { multiple.recycle() }
+        event(MotionEvent.ACTION_UP, 300, 250f)
+        assertEquals(1, failures)
+        assertEquals(0, completions)
+        verify(view, never()).processMotionEvent(any(MotionEvent::class.java))
     }
 }

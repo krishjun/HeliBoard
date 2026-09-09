@@ -39,9 +39,9 @@ fun GestureTypingScreen(
     if ((b?.value ?: 0) < 0)
         Log.v("irrelevant", "stupid way to trigger recomposition on preference change")
     val gestureFloatingPreviewEnabled = prefs.getBoolean(Settings.PREF_GESTURE_FLOATING_PREVIEW_TEXT, Defaults.PREF_GESTURE_FLOATING_PREVIEW_TEXT)
-    val gestureEnabled = prefs.getBoolean(Settings.PREF_GESTURE_INPUT, Defaults.PREF_GESTURE_INPUT)
+    val gestureEnabled = JniUtils.sHaveGestureLib && prefs.getBoolean(Settings.PREF_GESTURE_INPUT, Defaults.PREF_GESTURE_INPUT)
     val items = listOf(
-        Settings.PREF_GESTURE_INPUT,
+        if (JniUtils.sHaveGestureLib) Settings.PREF_GESTURE_INPUT else null,
         if (gestureEnabled)
             Settings.PREF_GESTURE_PREVIEW_TRAIL else null,
         if (gestureEnabled)
@@ -65,7 +65,7 @@ fun GestureTypingScreen(
     )
 }
 
-fun createGestureTypingSettings(context: Context) = listOf(
+fun createGestureTypingSettings(context: Context) = (if (JniUtils.sHaveGestureLib) listOf(
     Setting(context, Settings.PREF_GESTURE_INPUT, R.string.gesture_input, R.string.gesture_input_summary) {
         SwitchPreference(it, Defaults.PREF_GESTURE_INPUT)
     },
@@ -116,7 +116,7 @@ fun createGestureTypingSettings(context: Context) = listOf(
             stepSize = 10,
         ) { KeyboardSwitcher.getInstance().setThemeNeedsReload() }
     },
-) + if (BuildConfig.AI_SWIPE_AVAILABLE) listOf(
+) else emptyList()) + if (BuildConfig.AI_SWIPE_AVAILABLE) listOf(
     Setting(context, AI_SWIPE_ENABLED, R.string.ai_swipe_title, R.string.ai_swipe_summary) {
         AiSwipePreference(it)
     },
