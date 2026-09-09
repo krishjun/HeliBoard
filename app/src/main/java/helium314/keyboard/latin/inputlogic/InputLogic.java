@@ -2351,6 +2351,48 @@ public final class InputLogic {
         }
     }
 
+    /** Explicit AI acceptance; do not learn a generated sentence as a dictionary word. */
+    public boolean applyAiSwipeSuggestion(final String expectedWord, final String replacement,
+                                         final SettingsValues settingsValues) {
+        if (!mWordComposer.isBatchMode() || !expectedWord.equals(mWordComposer.getTypedWord())
+                || mConnection.hasSelection() || !mConnection.isCursorPositionKnown()
+                || replacement.isEmpty() || replacement.length() > 169
+                || !TextUtils.equals(expectedWord, mConnection.getTextBeforeCursor(expectedWord.length(), 0))) {
+            return false;
+        }
+        mConnection.beginBatchEdit();
+        try {
+            mConnection.commitText(replacement, 1);
+            resetComposingState(true);
+            mSpaceState = settingsValues.mAutospaceAfterSuggestion ? SpaceState.PHANTOM : SpaceState.NONE;
+            setSuggestedWords(SuggestedWords.getEmptyInstance());
+        } finally {
+            mConnection.endBatchEdit();
+        }
+        return true;
+    }
+
+    /** Called only when session, cursor and complete surrounding-text snapshot still match. */
+    public boolean undoAiSwipeSuggestion(final String inserted, final String original,
+                                        final SettingsValues settingsValues) {
+        if (mWordComposer.isComposingWord() || mConnection.hasSelection()
+                || !mConnection.isCursorPositionKnown()
+                || !TextUtils.equals(inserted, mConnection.getTextBeforeCursor(inserted.length(), 0))) {
+            return false;
+        }
+        mConnection.beginBatchEdit();
+        try {
+            mConnection.finishComposingText();
+            mConnection.deleteTextBeforeCursor(inserted.length());
+            mWordComposer.setBatchInputWord(original);
+            setComposingTextInternal(original, 1);
+            mSpaceState = settingsValues.mAutospaceAfterGestureTyping ? SpaceState.PHANTOM : SpaceState.NONE;
+        } finally {
+            mConnection.endBatchEdit();
+        }
+        return true;
+    }
+
     /**
      * Commit the typed string to the editor.
      * <p>

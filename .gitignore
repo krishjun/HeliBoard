@@ -15,3 +15,7 @@ tools/*.txt
 *.patch
 *.diff
 *.sh
+
+# Local Firebase client configuration and attestation secrets
+/firebase-ai.properties
+**/google-services.json

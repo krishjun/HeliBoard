@@ -9,6 +9,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import helium314.keyboard.keyboard.KeyboardSwitcher
+import helium314.keyboard.latin.BuildConfig
+import helium314.keyboard.latin.aiswipe.AI_SWIPE_ENABLED
+import helium314.keyboard.latin.aiswipe.AI_SWIPE_SENTENCES
+import helium314.keyboard.settings.preferences.AiSwipePreference
 import helium314.keyboard.latin.R
 import helium314.keyboard.latin.settings.Defaults
 import helium314.keyboard.latin.settings.Settings
@@ -50,7 +54,9 @@ fun GestureTypingScreen(
             Settings.PREF_GESTURE_FAST_TYPING_COOLDOWN else null,
         if (gestureEnabled &&
             (prefs.getBoolean(Settings.PREF_GESTURE_PREVIEW_TRAIL, Defaults.PREF_GESTURE_PREVIEW_TRAIL) || gestureFloatingPreviewEnabled))
-            Settings.PREF_GESTURE_TRAIL_FADEOUT_DURATION else null
+            Settings.PREF_GESTURE_TRAIL_FADEOUT_DURATION else null,
+        if (BuildConfig.AI_SWIPE_AVAILABLE) AI_SWIPE_ENABLED else null,
+        if (BuildConfig.AI_SWIPE_AVAILABLE) AI_SWIPE_SENTENCES else null
         )
     SearchSettingsScreen(
         onClickBack = onClickBack,
@@ -110,7 +116,14 @@ fun createGestureTypingSettings(context: Context) = listOf(
             stepSize = 10,
         ) { KeyboardSwitcher.getInstance().setThemeNeedsReload() }
     },
-)
+) + if (BuildConfig.AI_SWIPE_AVAILABLE) listOf(
+    Setting(context, AI_SWIPE_ENABLED, R.string.ai_swipe_title, R.string.ai_swipe_summary) {
+        AiSwipePreference(it)
+    },
+    Setting(context, AI_SWIPE_SENTENCES, R.string.ai_swipe_sentences_title, R.string.ai_swipe_sentences_summary) {
+        SwitchPreference(it, true)
+    },
+) else emptyList()
 
 @Preview
 @Composable

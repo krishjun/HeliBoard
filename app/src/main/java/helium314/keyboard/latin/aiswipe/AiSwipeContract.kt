@@ -46,6 +46,13 @@ data class AiSwipeRequest(
 }
 
 data class AiSwipeResult(val word: String, val continuation: String) {
+    fun joined(locale: String): String {
+        if (continuation.isEmpty()) return word
+        val noSpace = continuation.first() in ".,!?;:)]}、。！？，：；" ||
+            locale.substringBefore('-') in setOf("zh", "ja", "th", "lo", "km", "my")
+        return word + (if (noSpace) "" else " ") + continuation
+    }
+
     companion object {
         /** Schema is not a security boundary: validate again before displaying/inserting. */
         fun parse(raw: String?, request: AiSwipeRequest): AiSwipeResult? {

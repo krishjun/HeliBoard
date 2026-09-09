@@ -138,6 +138,7 @@ public class LatinIME extends InputMethodService implements
 
     // TODO: Move these {@link View}s to {@link KeyboardSwitcher}.
     private View mInputView;
+    private final AiSwipeController mAiSwipe = new AiSwipeController(this);
     private InsetsOutlineProvider mInsetsUpdater;
     private SuggestionStripView mSuggestionStripView;
 
@@ -692,6 +693,7 @@ public class LatinIME extends InputMethodService implements
 
     @Override
     public void onDestroy() {
+        mAiSwipe.close();
         mClipboardHistoryManager.onDestroy();
         mDictionaryFacilitator.closeDictionaries();
         mSettings.onDestroy();
@@ -761,6 +763,7 @@ public class LatinIME extends InputMethodService implements
         mInsetsUpdater = ViewOutlineProviderUtilsKt.setInsetsOutlineProvider(view);
         KtxKt.updateSoftInputWindowLayoutParameters(this, mInputView);
         updateSuggestionStripView(view);
+        mAiSwipe.attach(view);
     }
 
     public void updateSuggestionStripView(View view) {
@@ -779,6 +782,7 @@ public class LatinIME extends InputMethodService implements
 
     @Override
     public void onStartInput(final EditorInfo editorInfo, final boolean restarting) {
+        mAiSwipe.startSession();
         mHandler.onStartInput(editorInfo, restarting);
     }
 
@@ -786,10 +790,12 @@ public class LatinIME extends InputMethodService implements
     public void onStartInputView(final EditorInfo editorInfo, final boolean restarting) {
         mHandler.onStartInputView(editorInfo, restarting);
         mStatsUtilsManager.onStartInputView();
+        mHandler.post(() -> mAiSwipe.startView());
     }
 
     @Override
     public void onFinishInputView(final boolean finishingInput) {
+        mAiSwipe.finish();
         StatsUtils.onFinishInputView();
         mHandler.onFinishInputView(finishingInput);
         mStatsUtilsManager.onFinishInputView();
@@ -799,12 +805,14 @@ public class LatinIME extends InputMethodService implements
 
     @Override
     public void onFinishInput() {
+        mAiSwipe.finish();
         mHandler.onFinishInput();
         BackgroundGatheringCache.saveOrClear(this);
     }
 
     @Override
     public void onCurrentInputMethodSubtypeChanged(final InputMethodSubtype subtype) {
+        mHandler.post(() -> mAiSwipe.invalidate());
         // Note that the calling sequence of onCreate() and onCurrentInputMethodSubtypeChanged()
         // is not guaranteed. It may even be called at the same time on a different thread.
         if (subtype.hashCode() == 0x7000000f) {
@@ -1056,6 +1064,7 @@ public class LatinIME extends InputMethodService implements
                                   final int composingSpanStart, final int composingSpanEnd) {
         super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd,
                 composingSpanStart, composingSpanEnd);
+        mAiSwipe.selectionChanged(newSelStart, newSelEnd);
         if (DebugFlags.DEBUG_ENABLED) {
             Log.i(TAG, "onUpdateSelection: oss=" + oldSelStart + ", ose=" + oldSelEnd
                     + ", nss=" + newSelStart + ", nse=" + newSelEnd
@@ -1410,6 +1419,7 @@ public class LatinIME extends InputMethodService implements
     // This method is public for testability of LatinIME, but also in the future it should
     // completely replace #onCodeInput.
     public void onEvent(@NonNull final Event event) {
+        mAiSwipe.invalidate();
         if (KeyCode.VOICE_INPUT == event.getKeyCode()) {
             mRichImm.switchToShortcutIme(this);
         }
@@ -1422,6 +1432,7 @@ public class LatinIME extends InputMethodService implements
     }
 
     public void onTextInput(@Nullable String rawText) {
+        mAiSwipe.invalidate();
         if (rawText == null) return;
         // TODO: have the keyboard pass the correct key code when we need it.
         Event event = Event.createSoftwareTextEvent(rawText, KeyCode.MULTIPLE_CODE_POINTS, null);
@@ -1433,6 +1444,7 @@ public class LatinIME extends InputMethodService implements
     }
 
     public void onStartBatchInput() {
+        mAiSwipe.invalidate();
         mInputLogic.onStartBatchInput(mSettings.getCurrent(), mKeyboardSwitcher, mHandler);
         mGestureConsumer.onGestureStarted(mRichImm.getCurrentSubtypeLocale(), mKeyboardSwitcher.getKeyboard());
     }
@@ -1447,6 +1459,7 @@ public class LatinIME extends InputMethodService implements
     }
 
     public void onCancelBatchInput() {
+        mAiSwipe.invalidate();
         mInputLogic.onCancelBatchInput(mHandler);
         mGestureConsumer.onGestureCanceled();
     }
@@ -1462,6 +1475,11 @@ public class LatinIME extends InputMethodService implements
         mGestureConsumer.onImeSuggestionsProcessed(suggestedWords,
                 mInputLogic.getComposingStart(), mInputLogic.getComposingLength(),
                 mDictionaryFacilitator);
+        mAiSwipe.onGestureResult(suggestedWords);
+    }
+
+    public void invalidateAiSwipe() {
+        mAiSwipe.invalidate();
     }
 
     // This method must run on the UI Thread.
@@ -1535,6 +1553,7 @@ public class LatinIME extends InputMethodService implements
     // interface
     @Override
     public void pickSuggestionManually(final SuggestedWordInfo suggestionInfo) {
+        mAiSwipe.invalidate();
         final InputTransaction completeInputTransaction = mInputLogic.onPickSuggestionManually(
                 mSettings.getCurrent(), suggestionInfo,
                 mKeyboardSwitcher.getKeyboardCapsMode(),

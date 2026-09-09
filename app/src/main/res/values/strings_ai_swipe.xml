@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<resources>
+    <string name="ai_swipe_title">AI swipe assistant</string>
+    <string name="ai_swipe_summary">Use optional cloud predictions to improve a swiped word and suggest a short message continuation</string>
+    <string name="ai_swipe_sentences_title">Suggest message continuations</string>
+    <string name="ai_swipe_sentences_summary">Offer a short continuation as well as a corrected word. Nothing is inserted until you tap.</string>
+    <string name="ai_swipe_consent">Enable cloud-assisted swiping?\n\nAfter a swipe, up to 256 characters of your current draft, local word candidates and keyboard language are sent to Google through Firebase AI Logic. This includes text you have not sent. It does not read conversations, notifications or your clipboard.\n\nAI can be wrong. Review suggestions before tapping; long-press to read a complete suggestion. Undo is available until the next edit. Password and specialized fields, incognito mode, no-learning fields and the lock screen are excluded, but sensitive information in ordinary messages cannot always be detected.\n\nNetwork and provider charges may apply. Turn this switch off to stop new requests. Permission is not restored from a settings backup.</string>
+    <string name="ai_swipe_setup_required">This feature needs a cloud-enabled build with Firebase Android app configuration, working App Check and the separately installed glide typing library. Follow docs/AI_SWIPE.md in this fork. Normal typing remains available without AI.</string>
+    <string name="ai_swipe_consent_error">Permission could not be saved on this device. No AI requests have been enabled. Check available storage and try again.</string>
+    <string name="ai_swipe_agree">Enable cloud predictions</string>
+    <string name="ai_swipe_hint">AI · Swipe a word, then tap a prediction. Keep swiping to ignore.</string>
+    <string name="ai_swipe_working">AI · Predicting… you can keep typing</string>
+    <string name="ai_swipe_unavailable">AI unavailable · Local swipe typing still works</string>
+    <string name="ai_swipe_paused">AI paused · Local swipe typing still works</string>
+    <string name="ai_swipe_no_completion">AI · No confident continuation. Keep swiping.</string>
+    <string name="ai_swipe_word_chip">AI word · %1$s</string>
+    <string name="ai_swipe_phrase_chip">AI message · %1$s</string>
+    <string name="ai_swipe_undo">Undo AI insertion</string>
+</resources>

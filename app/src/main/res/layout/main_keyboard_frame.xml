@@ -12,6 +12,12 @@
     android:layout_gravity="bottom"
     android:orientation="vertical" >
 
+    <helium314.keyboard.latin.aiswipe.AiSwipeSuggestionBar
+        android:id="@+id/ai_swipe_bar"
+        android:layout_width="match_parent"
+        android:layout_height="72dp"
+        android:visibility="gone" />
+
     <include
         android:id="@+id/strip_container"
         layout="@layout/strip_container" />

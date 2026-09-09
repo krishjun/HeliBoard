@@ -6,12 +6,26 @@ plugins {
     kotlin("plugin.compose") version "2.4.0"
 }
 
+// Cloud builds are explicit; default artifacts retain their offline network boundary.
+val aiSwipe = providers.gradleProperty("aiSwipe").orNull == "true"
+val aiConfig = java.util.Properties().apply {
+    val configFile = rootProject.file("firebase-ai.properties")
+    if (aiSwipe && configFile.isFile) configFile.inputStream().use { load(it) }
+}
+fun aiConfigString(key: String, fallback: String = ""): String =
+    "\"" + aiConfig.getProperty(key, fallback).replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+
 android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "helium314.keyboard"
-        minSdk = 21
+        applicationId = if (aiSwipe) "helium314.keyboard.ai" else "helium314.keyboard"
+        buildConfigField("boolean", "AI_SWIPE_AVAILABLE", aiSwipe.toString())
+        buildConfigField("String", "AI_FIREBASE_PROJECT_ID", aiConfigString("projectId"))
+        buildConfigField("String", "AI_FIREBASE_APP_ID", aiConfigString("applicationId"))
+        buildConfigField("String", "AI_FIREBASE_API_KEY", aiConfigString("apiKey"))
+        buildConfigField("String", "AI_SWIPE_MODEL", aiConfigString("model", "gemini-3.5-flash-lite"))
+        minSdk = if (aiSwipe) 23 else 21
         targetSdk = 37
         versionCode = 4101
         versionName = "4.1"
@@ -114,7 +128,29 @@ android {
     }
 }
 
+// A build-type manifest overlay avoids changing offline tasks or duplicating the main manifest.
+android.sourceSets.getByName("main").java.srcDir(if (aiSwipe) "src/ai/java" else "src/offline/java")
+if (aiSwipe) {
+    android.buildTypes.all {
+        val development = name == "debug" || name == "debugNoMinify"
+        android.sourceSets.getByName(name).apply {
+            manifest.srcFile("src/ai/AndroidManifest.xml")
+            java.srcDir(if (development) "src/aiDebug/java" else "src/aiProduction/java")
+        }
+    }
+}
+
 dependencies {
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
+    if (aiSwipe) {
+        implementation(platform("com.google.firebase:firebase-bom:34.18.0"))
+        implementation("com.google.firebase:firebase-ai")
+        implementation("com.google.firebase:firebase-appcheck-playintegrity")
+        add("debugImplementation", "com.google.firebase:firebase-appcheck-debug")
+        add("debugNoMinifyImplementation", "com.google.firebase:firebase-appcheck-debug")
+    }
+
     // androidx
     implementation("androidx.core:core-ktx:1.17.0") // 1.18.0 requires minSdk 23
     implementation("androidx.recyclerview:recyclerview:1.4.0")
