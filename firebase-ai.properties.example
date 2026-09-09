@@ -1,0 +1,8 @@
+# Copy to firebase-ai.properties (gitignored). These are your Firebase Android APP config,
+# not a Gemini API key or service-account credential. Do not paste either of those here.
+# Obtain fields from your Firebase Android app's google-services.json.
+projectId=
+applicationId=
+apiKey=
+# Stable Lite model, verified in Firebase model documentation 2026-09-09.
+model=gemini-3.5-flash-lite
